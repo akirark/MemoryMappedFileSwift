@@ -64,4 +64,30 @@ struct MemoryMappedFile {
         }
         Darwin.msync(buf, self.mappedSize, 0)
     }
+    
+    /// Extend the mapped file
+    ///
+    /// - Parameters:
+    ///   - newSize:    The needed size.
+    /// - Throws: `MemoryMappedFileError.openFileError` Error on opening file.
+    mutating func extend(to newSize: Int) throws {
+        guard newSize > self.mappedSize else {
+            return
+        }
+        
+        if let buf = self.mappedBuffer {
+            Darwin.munmap(buf, self.mappedSize)
+            self.mappedBuffer = nil
+            self.mappedSize = 0
+        }
+        
+        self.mappedSize = ((newSize + pageSize - 1) / pageSize) * pageSize
+        
+        if ftruncate(self.fileDescriptor, off_t(self.mappedSize)) != 0 {
+            throw MemoryMappedFileError.openFileError
+        }
+        
+        self.mappedBuffer = Darwin.mmap(UnsafeMutableRawPointer(mutating: nil),
+                                        self.mappedSize, PROT_READ | PROT_WRITE, MAP_SHARED, self.fileDescriptor, 0)        
+    }
 }
